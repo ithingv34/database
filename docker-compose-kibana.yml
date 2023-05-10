@@ -1,0 +1,16 @@
+# docker-compose-kibana.yml
+
+version: '3'
+services:
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.15.0
+    container_name: kibana
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch1:9200","http://elasticsearch2:9201","http://elasticsearch3:9202"]'
+    networks:
+      - esnet
+networks:
+  esnet:
+    driver: bridge

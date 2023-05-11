@@ -1,17 +1,17 @@
 version: '3.7'
 services:
-  es-singlenode:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.0
-    container_name: es-singlenode
+  es1:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.6.0
+    container_name: es1
     environment:
-      - node.name=single-node
+      - node.name=es1
       - cluster.name=standalone
       - discovery.type=single-node
     ports:
       - 9200:9200
       - 9300:9300
     networks:
-      - es-bridge
+      - esnet
 networks:
-  es-bridge:
+  esnet:
     driver: bridge

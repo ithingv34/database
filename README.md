@@ -262,3 +262,550 @@ CREATE TABLE books (
     - 전체 백업이후에는 증분만 저장 가능
   - 스냅샷 복원
     - 찍어둔 스냅샷을 이용하여 데이터 복원
+
+---
+
+## Elasticsearch 설치
+
+- 준비사항
+  - docker 설치
+  - elasticsearch 버전 8.6.0
+    ```bash
+    $ docker pull docker.elastic.co/elasticsearch/elasticsearch:8.6.0
+    ```
+- 로컬에 설치
+    - 도커 네트워크 생성
+
+    ```bash
+    $ docker network create esnet
+    ```
+- Elasticsearch 실행
+
+    ```bash
+    $  docker run \
+         --name es1 \
+         --net esnet \
+         -p 9200:9200 \
+         -p 9300:9300 \
+         -e "discovery.type=single-node" \
+         -it docker.elastic.co/elasticsearch/elasticsearch:8.6.0
+    ```
+    <img src="./image/6.png">
+  
+- 보안 관련 토큰 로그 - 토큰 저장
+  - 비밀번호
+  - 키바나 토큰
+  - 노드 등록 토큰
+
+<img src="./image/17.png">
+
+- 비밀번호 초기화
+  - 기본계정 **elastic**에 대한 비밀번호 초기화
+  - 명령: elasticsearch-reset-password
+
+```bash
+$ docker exec -it es1 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
+```
+<img src="./image/7.png">
+
+- 보안 인증 파일을 로컬에 복제 (htts 통신)
+  - 로컬에서 curl로 Elasticsearch 사용시 필요
+
+```bash
+$ docker cp es1:/usr/share/elasticsearch/config/certs/http_ca.crt .
+```
+- 유저(elastic) 접속에 대한 인증
+
+```bash
+$ curl --cacert http_ca.crt -u elastic https://localhost:9200
+```
+<img src="./image/18.png">
+
+---
+### 키바나 설치
+
+1. kibana 컨테이너를 실행한다.
+
+```
+docker run --name kibana\
+ --network esnet\
+ -p 5601:5601 \
+ docker.elastic.co/kibana/kibana:8.6.0
+```
+
+2. 브라우저를 열고 http://localhost:5601에 접속하면 kibana와 elasticsearch 연결을 위해 token을 입력하면 터미널에 보안코드가 나오고 이 코드를 브라우저에 입력한다.
+
+<img src="./image/19.png">
+
+<img src="./image/20.png">
+
+3. 로그인을 위해 username에는 elastic, password는 elasticsearch 컨테이너 로그에 있는 Password for the elastic user의 비밀번호를 입력
+  
+<img src="./image/21.png">
+
+
+---
+### 데이터 적재하기
+
+
+**인덱스관리**
+
+- 인덱스 추가
+  - PUT 
+- 인덱스 확인
+  - GET
+- 인덱스 삭제
+  - DELETE
+
+**문서 관리**
+
+- 문서 등록
+  - 반드시 인덱스에 추가
+  - 인덱싱: 문서를 인덱스에 추가
+  - `_doc` : 엔드포인트 구분 예약어
+    ```
+    PUT [인덱스명]/_doc/[문서 ID]
+    {
+      "title": "엘라스틱 실습",
+      "author": "ihingv34"
+    }
+    ```
+  - **다이나믹 매핑**
+    - 타입을 알려주지 않아도 ES가 자동으로 타입 지정
+    - 인덱스 생성시 수동 매핑 가능
+
+- 문서 확인
+  - GET [인덱스명]/_doc/[문서 ID]
+
+- 문서 수정
+  - 기존 문서 등록과 동일한 방식(PUT)
+    - 덮어쓰기 방식
+    
+    ```
+    PUT [인덱스명]/_doc/[문서 ID]
+    {
+      [수정할 필드]: [수정할 값]
+    }
+    ```
+
+  - 수정 엔드포인트 활용 (_update)
+    - 성능 문제로 권장하지 않음
+    - 수정 작업이 잦은 경우 ES가 아닌 다른 DB를 선택하는 것이 좋음
+    ```
+    POST [인덱스명]/_update/[문서 ID]
+    {
+      "doc" : {
+        [필드명] : [필드값]
+      }
+    }
+    ```
+
+**ES 응답코드**
+
+|응답코드 |설명 |
+|:--:|:--|
+|200,201| 정상처리 |
+|404| 해당 리소스(인덱스, 문서)가 없음 |
+|405| 해당 메서드를 처리못함 |
+|5xx| 서버 오류 |
+
+
+**벌크 데이터 작업**
+
+- 한꺼번에 문서 작업이 필요한 경우
+- POST_bulk
+- 생성 및 수정 - 두 줄로 작성
+- 삭제 - 한 줄로 작성
+- 포맷은 json이 아닌 **NDJSON**을 사용
+- [**NDJSON**](http://ndjson.org/): 다수의 JSON을 줄바꿈 문자열로 구분하는 포맷
+
+**샘플**
+
+```
+$ curl -XPOST 'http://localhost:9200/my_index/my_document/_bulk' -H 'Content-Type: application/json' --data-binary @bulk_data.json
+
+```
+- `--data-binary @bulk_data.json`: 로드할 대량 데이터가 포함된 파일(bulk_data.json)의 경로를 지정한다. @ 기호는 파일이 바이너리 데이터로 전송되어야 함을 나타낸다.
+
+```
+# bulk_data.json
+
+{"index":{}}
+{"title": "Document 1", "content": "This is the content of document 1."}
+{"index":{}}
+{"title": "Document 2", "content": "This is the content of document 2."}
+
+```
+
+----
+### 데이터 조회
+
+**사전 준비**
+- Docker 실행 환경
+- Elasticsearch 로컬 설치(docker)
+- Kibana 로컬 설치(docker)
+
+
+**샘플 데이터 추가 - 이커머스 주문 샘플**
+- `Integrations` > `Sample Data`
+
+<img src="./image/22.png">
+<img src="./image/23.png">
+
+
+**Dev Tool을 이용한 조회**
+- 콘솔 제공: cURL과 유사한 제공
+- 실행 버튼 제공
+- 변수 기능 지원
+- 편의 기능 제공
+- 자동 완성 제공
+
+- 자주 쓰는 변수를 등록할 수 있다.
+<img src="./image/24.png">
+
+- 다양한 편의 기능
+<img src="./image/25.png">
+
+- 자동완성 기능
+<img src="./image/26.png">
+
+**Elasticsearch 검색**
+
+- Full text queries(전문 쿼리)
+  - 일반적인 검색 엔진과 유사, 검색 키워드를 분석기 및 토큰화
+  - `Math Query`
+  - `Match Phrase Query`
+  - `Multi Match Query`
+
+- Term level queries(용어 수준 쿼리)
+  - 검색 키워드를 토큰화 하지 않음, 키워드 타입에 매핑된 필드에 사용
+  - `Term Query`
+  - `Terms Query`
+
+
+**전문 쿼리 - Match Query**
+
+- `_search` : 검색 API
+- `_source` : 해당 필드만 응답
+- `“customer_full_name”` 필드에서 `Daniels`를 찾는 요청
+- 검색 키워드 → 토큰화 → “OR”로 인식
+
+```
+# Match Query
+# GET [인덱스명]/_search
+
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": ["customer_full_name"],
+  "query": {
+  "match": {
+  "customer_full_name": "Daniels"
+    }
+  }
+}
+```
+
+<img src="./image/27.png">
+
+- 검색 키워드 토큰화 - OR
+  - 둘 중에 하나라도 있는 문서를 찾음
+  - Sonya Daniels -> ["Sonya", "Daniels"]
+
+<img src="./image/28.png">
+
+- 검색 키워드 토큰화 - AND
+- 토큰화를 원하지 않는 경우
+  
+```
+# Match Query
+GET kibana_sample_data_ecommerce/_search
+{
+    "_source": ["customer_full_name"],
+    "query": {
+    "match": {
+    "customer_full_name": {
+    "query": "Sonya Daniels",
+    "operator": "and"
+      }
+    }
+  }
+}
+
+```
+<img src="./image/29.png">
+
+
+
+**전문 쿼리 - Match Phrase Query**
+
+- Phrase(구) 를 검색하는데 사용
+- Phrase(구) - 동사 외의 단어가 두 개 이상으로 이뤄진 문장
+단어의 순서 중요
+
+```
+# Match Phrase Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": ["customer_full_name"],
+  "query": {
+    "match_phrase": {
+      "customer_full_name": "Sonya Daniels"
+    }
+  }
+}
+
+```
+<img src="./image/30.png">
+
+**Term Query**
+- 키워드 필드 에 사용
+- 텍스트 필드에 쿼리시 원하는 결과 안나옴
+
+```
+# Terms Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": ["category.keyword"],
+    "query": {
+      "term": {
+        "customer_full_name": "Sonya Daniels"
+      }
+  }
+}
+
+```
+<img src="./image/31.png">
+
+- 키워드 필드에 검색하는 경우
+  
+```
+# Terms Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": ["customer_full_name"],
+    "query": {
+      "term": {
+        "customer_full_name.keyword": "Sonya Daniels"
+      }
+  }
+}
+
+```
+<img src="./image/32.png">
+
+**Terms Query**
+
+- 키워드 타입에 매핑된 필드 검색
+- 대소문자 구분
+- 여러개의 용어 검색
+
+```
+# Terms Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": ["category", "category.keyword"],
+    "query": {
+      "terms": {
+      "category.keyword": [
+        "Women's Clothing",
+        "Women's Accessories"
+      ]
+    }
+  }
+}
+
+```
+
+<img src="./image/33.png">
+
+
+**Multi Match Query**
+
+- 일반적인 검색 엔진과 같은 검색
+- **정확하게 어느 필드인지 모르는 경우**
+- 와일드카드(*)를 활용한 멀티 필드 가능
+
+```
+# Multi Match Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": [
+    "customer_gender",
+    "customer_first_name",
+    "customer_full_name",
+    "email"
+    ],
+  "query": {
+    "multi_match": {
+      "query": "Powell",
+      "fields": [
+        "customer_first_name",
+        "customer_last_name"
+      ]
+    }
+  }
+}
+
+```
+<img src="./image/34.png">
+
+
+**Range Query**
+
+- 날짜, IP 주소, 숫자 필드에 가능
+- 검색 조건에 주어진 범위에 포함된 데이터 검색
+- `gte` , `gt` , `lte` , `lt`
+
+```
+# Range Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": [
+    "order_id",
+    "order_date",
+    "customer_full_name",
+    "total_quantity"
+    ],
+  "query": {
+    "range": {
+      "total_quantity": {
+        "gte": 4,
+        "lte": 5
+      }
+    }
+  }
+}
+```
+<img src="./image/35.png">
+
+
+**Bool Query - 쿼리 조합** 
+
+- 쿼리를 조합해서 쿼리
+- 4가지 타입 지원
+  - `must` - 참인 데이터를 검색
+  - `must_not` - 거짓인 데이터를 검색
+  - `should`
+    - 단독 사용 가능, 참인 데이터 검색
+    - 다른 타입과 함께 사용하면 스코어를 높이는데 활용
+    - 다른 쿼리와 사용하면 OR 조건
+  - `filter`
+    - 불필요한 데이터 필터링
+    - 예/아니오 형태의 필터
+    - 쿼리 스코어 무시, 속도 빠름, 캐싱
+
+
+```
+# Bool Query
+GET kibana_sample_data_ecommerce/_search
+{
+  "_source": [
+    "customer_gender",
+    "customer_full_name",
+    "total_quantity",
+    "category"
+    ],
+  "query": {
+    "bool": {
+        "filter": [
+          { "term": { "total_quantity": "4" }}
+        ],
+        "must": [
+          {
+          "term": { "customer_gender": "FEMALE" }
+          }
+        ],
+        "must_not": [
+          {
+          "range": { "total_quantity": { "lte": 1 }}
+          }
+        ],
+        "should": [
+          { "term": { "category": "Women's Clothing"}}
+          ]
+        }
+    }
+}
+
+```
+
+<img src="./image/36.png">
+
+
+### Kibana
+
+**Kibana란**
+
+<img src="./image/8.png">
+
+- Elasticsearch에 색인된 데이터 기반
+- 시각화 및 검색 기능을 제공
+- 오픈소스
+- 로깅 플랫폼 구축
+- 다른 저장소와의 연동이 어려움
+
+**Kibana 기능**
+
+- 로깅과 로그 분석
+- 인프라 메트릭과 컨테이너 모니터링
+- 애플리케이션 성능 모니터링(APM)
+- 위치 기반 정보 데이터 분석과 시각화
+- 보안 분석
+- 비즈니스 분석
+- Elastic Stack 인스턴스를 모니터링, 관리
+
+
+**Kibana 시각화 기능**
+
+<img src="./image/9.png">
+
+**Discover**
+<img src="./image/10.png">
+- 데이터 조회, 필터, 분석
+- 로그의 경우 많이 적재하는 경우 많은 비용이 발생
+- 일정 기간동안 로그를 저장하고 삭제
+
+**Dashboard**
+<img src="./image/11.png">
+- 다양한 그래프를 활용한 시각화
+
+**Canvas**
+<img src="./image/12.png">
+- Elasticsearch 데이터를 사용
+- 프리젠테이션처럼 구성
+- 보고서
+- 동적인 인포그래픽 생성
+
+**Maps**
+<img src="./image/13.png">
+- 위치 정보 데이터를 이용한 위치 기반 정보 데이터 분석
+- 지도에 위치 기반 데이터를 표현
+
+**ML**
+<img src="./image/14.png">
+- Elastic Machine Learning을 이용한 이상 감지, 예측, 식별등의 기능
+
+**Graph**
+<img src="./image/14.png">
+- 데이터를 관계 지향적으로 시각화
+
+**Observability**
+
+<img src="./image/15.png">
+- `Logs`, `APM`, `Uptime`, `Alert`
+- 연관된 시스템을 실시간으로 모니터링하고 분석할 수 있음
+
+**Logs**
+- Elasticsearch 로그 적재
+- 적재된 로그 탐색
+- 적재된 로그 모니터링
+
+**DevTool**
+<img src="./image/16.png">
+
+- 엘라스틱서치에 직접 디버깅용 콘솔 툴 제공
+- Elasticsearch 데이터 탐색
+- 쿼리 결과 확인
+- 디버깅
+
+

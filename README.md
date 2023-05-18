@@ -862,4 +862,5 @@ GET kibana_sample_data_ecommerce/_search
 - 검색 서버 연결 설정하기
 - 검색 API 구현하기
 - 검색 API 테스트하기
+- 
 

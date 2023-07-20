@@ -854,13 +854,3 @@ GET kibana_sample_data_ecommerce/_search
 - 안정성
 
 <img src="./image/39.png">
-
-**검색 API 서버 구현**
-
-- [Elasticsearch] 초간단 상품 정보 등록
-- 스프링 프로젝트 생성
-- 검색 서버 연결 설정하기
-- 검색 API 구현하기
-- 검색 API 테스트하기
-- 
-

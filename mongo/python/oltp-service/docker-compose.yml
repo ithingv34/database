@@ -1,0 +1,28 @@
+version: '3.7'
+
+services:
+
+  mongo:
+    build:
+      context: .
+      dockerfile: docker/mongo/Dockerfile
+    restart: always
+    container_name: mongo
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    ports:
+      - 27017-27019:27017-27019
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    networks:
+      - backend
+
+volumes:
+  mongo-data:
+  mongo-config:
+
+networks:
+  backend:
+    name: custom_network

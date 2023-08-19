@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "oltp-service"
+version = "0.1.0"
+description = ""
+authors = ["ithingv34 <ithingv34@gmail.com>"]
+readme = "README.md"
+packages = [{include = "oltp_service"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = {extras = ["all"], version = "^0.101.1"}
+uvicorn = "^0.23.2"
+motor = "^3.2.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.1"
+pytest-env = "^0.8.2"
+requests = "^2.31.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
